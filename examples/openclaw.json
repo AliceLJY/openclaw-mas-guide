@@ -1,0 +1,72 @@
+{
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "google-antigravity/gemini-3-flash"
+      },
+      "workspace": "/home/node/.openclaw/workspace",
+      "compaction": {
+        "mode": "safeguard"
+      },
+      "maxConcurrent": 4,
+      "subagents": {
+        "maxConcurrent": 8
+      }
+    },
+    "list": [
+      {
+        "id": "main",
+        "subagents": {
+          "allowAgents": ["coder", "reviewer", "researcher"]
+        }
+      },
+      {
+        "id": "coder",
+        "name": "Code Agent",
+        "model": "google-antigravity/claude-opus-4-5-thinking",
+        "workspace": "/home/node/.openclaw/workspace-coder",
+        "agentDir": "/home/node/.openclaw/agents/coder"
+      },
+      {
+        "id": "reviewer",
+        "name": "Review Agent",
+        "model": "google-antigravity/claude-sonnet-4-5",
+        "workspace": "/home/node/.openclaw/workspace-reviewer",
+        "agentDir": "/home/node/.openclaw/agents/reviewer"
+      },
+      {
+        "id": "researcher",
+        "name": "Research Agent",
+        "model": "google-antigravity/gemini-3-pro-high",
+        "workspace": "/home/node/.openclaw/workspace-researcher",
+        "agentDir": "/home/node/.openclaw/agents/researcher"
+      }
+    ]
+  },
+  "channels": {
+    "discord": {
+      "enabled": true,
+      "token": "YOUR_DISCORD_BOT_TOKEN",
+      "groupPolicy": "open"
+    }
+  },
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "bind": "loopback",
+    "auth": {
+      "mode": "token",
+      "token": "YOUR_GATEWAY_TOKEN"
+    }
+  },
+  "plugins": {
+    "entries": {
+      "google-antigravity-auth": {
+        "enabled": true
+      },
+      "discord": {
+        "enabled": true
+      }
+    }
+  }
+}
