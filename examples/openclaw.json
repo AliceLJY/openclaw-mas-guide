@@ -2,7 +2,8 @@
   "agents": {
     "defaults": {
       "model": {
-        "primary": "google-antigravity/gemini-3-flash"
+        "primary": "google-antigravity/gemini-3-flash",
+        "fallbacks": ["google-antigravity/gemini-3-pro-high"]
       },
       "workspace": "/home/node/.openclaw/workspace",
       "compaction": {
@@ -21,28 +22,77 @@
         }
       },
       {
+        "id": "nano",
+        "name": "nano",
+        "workspace": "/home/node/.openclaw/workspace",
+        "agentDir": "/home/node/.openclaw/agents/nano/agent",
+        "model": {
+          "primary": "google-antigravity/gemini-3-pro-high",
+          "fallbacks": ["google-antigravity/gemini-3-flash"]
+        }
+      },
+      {
         "id": "coder",
         "name": "Code Agent",
-        "model": "google-antigravity/claude-opus-4-5-thinking",
+        "model": {
+          "primary": "google-antigravity/claude-opus-4-5-thinking",
+          "fallbacks": ["google-antigravity/claude-sonnet-4-5", "google-antigravity/gemini-3-pro-high"]
+        },
         "workspace": "/home/node/.openclaw/workspace-coder",
         "agentDir": "/home/node/.openclaw/agents/coder"
       },
       {
         "id": "reviewer",
         "name": "Review Agent",
-        "model": "google-antigravity/claude-sonnet-4-5",
+        "model": {
+          "primary": "google-antigravity/claude-sonnet-4-5",
+          "fallbacks": ["google-antigravity/gemini-3-pro-high", "google-antigravity/gemini-3-flash"]
+        },
         "workspace": "/home/node/.openclaw/workspace-reviewer",
         "agentDir": "/home/node/.openclaw/agents/reviewer"
       },
       {
         "id": "researcher",
         "name": "Research Agent",
-        "model": "google-antigravity/gemini-3-pro-high",
+        "model": {
+          "primary": "google-antigravity/gemini-3-pro-high",
+          "fallbacks": ["google-antigravity/gemini-3-flash"]
+        },
         "workspace": "/home/node/.openclaw/workspace-researcher",
         "agentDir": "/home/node/.openclaw/agents/researcher"
       }
     ]
   },
+  "bindings": [
+    {
+      "agentId": "coder",
+      "match": {
+        "channel": "discord",
+        "peer": { "kind": "channel", "id": "YOUR_WORK_CHANNEL_ID" }
+      }
+    },
+    {
+      "agentId": "coder",
+      "match": {
+        "channel": "discord",
+        "peer": { "kind": "channel", "id": "YOUR_SANDBOX_CHANNEL_ID" }
+      }
+    },
+    {
+      "agentId": "reviewer",
+      "match": {
+        "channel": "discord",
+        "peer": { "kind": "channel", "id": "YOUR_MEAN_CHANNEL_ID" }
+      }
+    },
+    {
+      "agentId": "nano",
+      "match": {
+        "channel": "discord",
+        "peer": { "kind": "channel", "id": "YOUR_NANO_CHANNEL_ID" }
+      }
+    }
+  ],
   "channels": {
     "discord": {
       "enabled": true,

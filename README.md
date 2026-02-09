@@ -57,6 +57,112 @@ cp agents/main/agent/auth-profiles.json agents/coder/agent/
 cp agents/main/agent/auth-profiles.json agents/reviewer/agent/
 ```
 
+## 进阶：模型容错（Fallback 链）
+
+OpenClaw 原生支持 `model.fallbacks` 数组。当主模型挂了（认证失败、rate limit、额度耗尽），自动切换到下一个备选模型。
+
+### 配置方法
+
+把 `model` 从字符串改成对象：
+
+```json
+{
+  "id": "coder",
+  "name": "Code Agent",
+  "model": {
+    "primary": "google-antigravity/claude-opus-4-5-thinking",
+    "fallbacks": ["google-antigravity/claude-sonnet-4-5", "google-antigravity/gemini-3-pro-high"]
+  }
+}
+```
+
+全局默认也可以加：
+
+```json
+"defaults": {
+  "model": {
+    "primary": "google-antigravity/gemini-3-flash",
+    "fallbacks": ["google-antigravity/gemini-3-pro-high"]
+  }
+}
+```
+
+### 容错机制
+
+OpenClaw 的故障恢复分两层：
+
+1. **同 provider 内 auth profile 轮换**：如果有多个账号，先轮换 auth profile（冷却时间 1→5→25 分钟→1 小时上限）
+2. **跨模型 fallback**：所有 profile 都挂了才跳到 fallbacks 里的下一个模型
+
+计费额度耗尽的冷却更长：5 小时起步，翻倍到 24 小时封顶。
+
+参考：[OpenClaw Model Failover 文档](https://docs.openclaw.ai/concepts/model-failover)
+
+## 进阶：Discord 频道级路由（Bindings）
+
+### 问题
+
+默认情况下，所有 Discord 频道都路由到 `main` agent（通常是最便宜的模型）。想让 #work 频道直接用 Opus、#mean 用 Sonnet，靠 MEMORY.md 写 prompt 指引让 Flash 自己判断何时 spawn 子 agent——**不靠谱**，Flash 经常不主动 spawn。
+
+### 解决方案：bindings
+
+OpenClaw 的 `bindings` 数组可以把特定 Discord 频道直接路由到指定 agent，绕过 main agent：
+
+```json
+{
+  "bindings": [
+    {
+      "agentId": "coder",
+      "match": {
+        "channel": "discord",
+        "peer": { "kind": "channel", "id": "YOUR_WORK_CHANNEL_ID" }
+      }
+    },
+    {
+      "agentId": "reviewer",
+      "match": {
+        "channel": "discord",
+        "peer": { "kind": "channel", "id": "YOUR_MEAN_CHANNEL_ID" }
+      }
+    }
+  ]
+}
+```
+
+### 获取 Discord 频道 ID
+
+Discord 开启开发者模式后，右键频道名 → Copy Channel ID。
+
+### 路由优先级（most-specific wins）
+
+1. Peer match（频道 ID）← bindings 用的就是这个
+2. Guild ID（Discord 服务器）
+3. Team ID（Slack）
+4. Account ID
+5. Channel 类型
+6. 默认 agent
+
+### 注意事项
+
+- 被绑定的频道**不经过 main agent**，该频道里不会有 MAS 协作（但通常不需要——#work 直接用 Opus 就够了）
+- 每个绑定的 agent 需要自己的 `auth-profiles.json`（同坑三的处理方式）
+- `peer.kind` 对 Discord 频道用 `"channel"`（经实测验证）
+- 官方 per-channel model override [被拒了](https://github.com/openclaw/openclaw/issues/3742)，bindings 是目前唯一的系统级方案
+- 未绑定的频道仍走 main agent，MAS 功能照常可用
+
+### 架构效果
+
+```
+Discord 消息进入
+    │
+    ├─ #work ──→ coder agent (Opus 4.5) ──fallback→ Sonnet → Gemini Pro
+    ├─ #mean ──→ reviewer agent (Sonnet 4.5) ──fallback→ Gemini Pro → Flash
+    ├─ #nano ──→ nano agent (Gemini Pro) ──fallback→ Flash
+    └─ 其他频道 ──→ main agent (Flash) ──fallback→ Gemini Pro
+                        │
+                        └─ MAS 可用：spawn coder/reviewer/researcher
+```
+
 ## 完整配置示例
 
 ### openclaw.json
@@ -102,6 +208,17 @@ Bot 需要在 MEMORY.md 里知道有哪些子 agent 可用、什么时候使用 
 - Bot 调用 `sessions_spawn` 生成 Code Agent（agentId: "coder"）
 - Code Agent 完成后，Bot 再 spawn Review Agent（agentId: "reviewer"）
 - Bot 汇总两个子 agent 的结果，输出协作报告
+
+## 版本记录
+
+### v2 (2026-02-10)
+- 新增：模型容错（fallback 链）配置方法
+- 新增：Discord 频道级路由（bindings）方案，经实测 `peer.kind: "channel"` 可用
+- 更新：示例 openclaw.json 包含 fallback + bindings 完整配置
+- 记录：官方 per-channel model override 被拒（issue #3742），bindings 是替代方案
+
+### v1 (2026-02-08)
+- 初始版本：MAS 三大坑 + 完整配置示例
 
 ## 环境
 
