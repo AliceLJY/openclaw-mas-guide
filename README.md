@@ -196,9 +196,132 @@ Discord 消息进入
 
 Bot 需要在 MEMORY.md 里知道有哪些子 agent 可用、什么时候使用 MAS、怎么调用 `sessions_spawn`，否则它不会主动使用这个功能。
 
+## 进阶：MAS 工作流模式
+
+经实测，OpenClaw MAS 支持以下三种协作模式：
+
+### Mode A：线性流水线（Linear Pipeline）
+
+子 agent 按顺序执行，前一个的输出作为后一个的输入。
+
+```
+用户 → Agent A → Agent B → Agent C → 汇总
+```
+
+**用法**：Flash spawn Agent A，等完成后再 spawn Agent B（把 A 的结果写进 B 的 task 描述）。
+
+### Mode B：DAG 并行（实测通过）
+
+多个子 agent 同时执行不同的独立任务，最后汇总。类似 Claude Code 的 subagent 模式。
+
+```
+         ┌─ Coder → 写代码
+用户 → Flash ├─ Reviewer → 列大纲
+         └─ Researcher → 搜数据
+                    ↓
+              Flash 汇总
+```
+
+**测试 prompt**：
+```
+帮我准备一篇关于"AI 替代焦虑"的公众号文章素材，三个任务并行执行：
+1. Code Agent：写一个 Python 情绪分析小工具的完整代码
+2. Research Agent：搜集 AI 替代焦虑的数据、案例和权威报告
+3. Review Agent：为这个话题列出公众号文章写作大纲和避坑建议
+三个任务相互独立，请同时 spawn 三个子 agent 并行处理，完成后汇总所有结果。
+```
+
+**实测结果**：
+- Flash 成功并行 spawn 3 个子 agent
+- 全部完成后 Flash **一次性输出完整汇总表**，无需追问
+- 速度较快，适合日常使用
+
+### Mode C：辩论模式（Debate，实测通过）
+
+多个子 agent 围绕同一话题从不同立场输出观点，最后由 Flash 综合。类似 Claude Code 的 teams 模式。
+
+```
+         ┌─ Coder（赋能派）→ 正方观点
+用户 → Flash ├─ Reviewer（焦虑派）→ 反方观点
+         └─ Researcher（调研员）→ 中立数据
+                    ↓
+              Flash 综合对比
+```
+
+**测试 prompt**：
+```
+我要在公众号写一篇"AI照见众生"板块的深度观察文章。话题：AI 到底是让普通人变强了，还是让普通人更焦虑了？
+请用 MAS 多智能体辩论模式：
+1. Code Agent 扮演"赋能派"（正方）
+2. Review Agent 扮演"焦虑派"（反方）
+3. Research Agent 扮演"调研员"（中立方）
+三位同时发言，完成后你来做裁判，输出对比表、分歧点分析和文章框架。
+```
+
+**实测结果**：
+- 3 个 agent 并行完成，各自输出风格鲜明的内容
+- **已知问题**：Flash 汇总时可能说"请稍后"然后 run 结束，需要追问一句"请继续汇总"才输出完整对比表
+- 原因：单个 turn 的输出 token 不够同时汇报 3 个 agent 的结果 + 生成综合报告
+
+### 三种模式对比
+
+| | Mode A 线性 | Mode B 并行 | Mode C 辩论 |
+|---|---|---|---|
+| 子 agent 关系 | 串行依赖 | 完全独立 | 独立但同话题 |
+| 执行速度 | 最慢 | 快 | 快 |
+| 汇总质量 | 高（有上下文传递） | 高（一次性输出） | 高（但可能需追问） |
+| 适合场景 | 代码→审查→测试 | 素材搜集、多角度准备 | 观点碰撞、深度分析 |
+| CC 类比 | — | subagent 模式 | teams 模式 |
+
+## 进阶：MAS + 本地 Claude Code 集成
+
+### 问题
+
+MAS 擅长并行搜集素材和生成框架，但最终写成公众号文章需要特定的风格处理（去 AI 味、口语化等）。这些规则在本地 Claude Code 的 skill 和 CLAUDE.md 里，OpenClaw 容器内不知道。
+
+### 解决方案：MAS → CC 流水线
+
+通过 [openclaw-worker](https://github.com/AliceLJY/openclaw-worker) 桥接 OpenClaw 和本地 CC：
+
+```
+Discord 用户发指令
+    │
+    ├─ 1. Flash spawn MAS agents（并行出素材）
+    │     ├─ Researcher → 数据/案例
+    │     ├─ Reviewer → 大纲/避坑
+    │     └─ Coder → 代码示例
+    │
+    ├─ 2. Flash 汇总 → 文章框架
+    │
+    ├─ 3. Flash 调用本地 CC（通过 Task API + session-id 多轮对话）
+    │     └─ CC 跑 Content Alchemy skill
+    │         → 多阶段精炼（分析→提炼→人话改写→去 AI 味→配图）
+    │         → 遇到 checkpoint → Flash 转发给用户 → 用户 Discord 回复 → Flash 转发给 CC
+    │
+    └─ 4. CC 返回成品 → Flash 发到 Discord
+```
+
+**分工**：MAS 是大脑（搜集素材），CC 是笔杆子（写成用户风格）。
+
+### 关键配置
+
+Bot 的 MEMORY.md 需要包含：
+1. CC 调用方式（API 地址、认证）
+2. **Skill 调用规则**：prompt 必须以 `/content-alchemy` 开头，不能让 CC 裸写
+3. **多轮对话说明**：首轮不带 sessionId，后续轮次带上返回的 sessionId
+4. Bot 在 CC 交互中是传话人，不替用户做决定
+
+### 已知问题
+
+- Flash 可能不知道怎么调 skill，只是把素材作为普通 prompt 发给 CC → CC 裸写，质量差
+- **解法**：在 MEMORY.md 的 CC 调用规则里明确写 skill 命令格式
+- Researcher 的 `web_search` 需要 Brave API key 才能真正搜索，否则只用内部知识
+
 ## 验证方法
 
-在 Discord 频道对 bot 说：
+### 基础验证（MAS 协作）
+
+在 Discord **未绑定频道**（如 #chat）对 bot 说：
 
 ```
 用 MAS 写一个 Python 计算器程序，Code Agent 写代码，Review Agent 审查
@@ -209,7 +332,31 @@ Bot 需要在 MEMORY.md 里知道有哪些子 agent 可用、什么时候使用 
 - Code Agent 完成后，Bot 再 spawn Review Agent（agentId: "reviewer"）
 - Bot 汇总两个子 agent 的结果，输出协作报告
 
+### Mode B 验证（并行素材搜集）
+
+在 #chat 发送上面 Mode B 的测试 prompt，预期 3 个 agent 并行完成后一次性汇总。
+
+### Mode C 验证（辩论模式）
+
+在 #chat 发送上面 Mode C 的测试 prompt，预期 3 个 agent 各出观点，追问后 Flash 输出对比表。
+
+### MAS + CC 验证（完整流水线）
+
+在 #chat 发送：
+```
+用 MAS 搜集"AI 替代焦虑"素材（并行），然后调用本地 Claude Code 用 /content-alchemy skill 写一篇公众号文章
+```
+
+预期：MAS 出框架 → Flash 调 CC → CC 跑 skill 多阶段 → 成品返回 Discord。
+
 ## 版本记录
+
+### v3 (2026-02-10)
+- 新增：MAS 三种工作流模式文档（Mode A 线性 / Mode B 并行 / Mode C 辩论），含实测 prompt 和结果
+- 新增：MAS + 本地 Claude Code 集成方案（通过 openclaw-worker 桥接，session-id 多轮对话）
+- 新增：Content Alchemy skill 调用规则（Bot MEMORY.md 配置方法）
+- 记录：Mode C 已知问题（Flash 汇总可能需追问一句）
+- 记录：Researcher web_search 需要 Brave API key
 
 ### v2 (2026-02-10)
 - 新增：模型容错（fallback 链）配置方法
