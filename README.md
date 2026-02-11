@@ -1,5 +1,20 @@
 # OpenClaw MAS (Multi-Agent System) Setup Guide
 
+> **⚠️ Retired / 已退役**
+>
+> MAS multi-agent orchestration has been replaced by [openclaw-cc-pipeline](https://github.com/AliceLJY/openclaw-cc-pipeline) — a lighter single-thread pattern using Claude Code CLI with multi-turn session persistence.
+>
+> MAS Mode B (parallel) ≈ Content Alchemy Stage 1 (topic mining with multiple sources)
+> MAS Mode C (debate) ≈ Content Alchemy Stage 2 (cross-reference verification)
+>
+> The CC Pipeline approach consumes significantly less context: only result summaries flow back to the Bot, whereas MAS accumulates full outputs from every sub-agent in the main agent's context window.
+>
+> This repo is kept as a historical reference. The configuration patterns (allowAgents placement, model ID matching, auth distribution, fallback chains, channel bindings) remain valid for anyone still using OpenClaw MAS.
+>
+> MAS 多 agent 协作已被 [openclaw-cc-pipeline](https://github.com/AliceLJY/openclaw-cc-pipeline) 替代——用 CC CLI 单线程 + 多轮 session 实现同样的效果，上下文消耗小得多。本仓库保留作为历史参考。
+
+---
+
 > 在 OpenClaw 上配置 `sessions_spawn` 多 Agent 协作的完整踩坑指南。
 
 ## 背景
