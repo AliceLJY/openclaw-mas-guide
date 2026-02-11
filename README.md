@@ -37,7 +37,8 @@ agents.defaults.subagents: Unrecognized key: "allowAgents"
 
 | 你以为的 | 实际的 |
 |---------|-------|
-| `claude-opus-4-5` | `claude-opus-4-5-thinking` |
+| `claude-opus-4-6` | `claude-opus-4-6-thinking` |
+| `claude-opus-4-5` | `claude-opus-4-5-thinking`（已下线） |
 | `claude-sonnet` | `claude-sonnet-4-5` |
 | `gemini-3-pro` | `gemini-3-pro-high` |
 
@@ -70,7 +71,7 @@ OpenClaw 原生支持 `model.fallbacks` 数组。当主模型挂了（认证失�
   "id": "coder",
   "name": "Code Agent",
   "model": {
-    "primary": "google-antigravity/claude-opus-4-5-thinking",
+    "primary": "google-antigravity/claude-opus-4-6-thinking",
     "fallbacks": ["google-antigravity/claude-sonnet-4-5", "google-antigravity/gemini-3-pro-high"]
   }
 }
@@ -155,12 +156,12 @@ Discord 开启开发者模式后，右键频道名 → Copy Channel ID。
 ```
 Discord 消息进入
     │
-    ├─ #work ──→ coder agent (Opus 4.5) ──fallback→ Sonnet → Gemini Pro
+    ├─ #work ──→ coder agent (Opus 4.6) ──fallback→ Sonnet → Gemini Pro → Flash
     ├─ #mean ──→ reviewer agent (Sonnet 4.5) ──fallback→ Gemini Pro → Flash
     ├─ #nano ──→ nano agent (Gemini Pro) ──fallback→ Flash
-    └─ 其他频道 ──→ main agent (Flash) ──fallback→ Gemini Pro
+    └─ 其他频道 ──→ main agent (Opus 4.6) ──fallback→ Sonnet → Gemini Pro → Flash
                         │
-                        └─ MAS 可用：spawn coder/reviewer/researcher
+                        └─ MAS 可用：spawn coder/reviewer/researcher (subagents: Opus 4.6)
 ```
 
 ## 完整配置示例
@@ -351,6 +352,12 @@ Bot 的 MEMORY.md 需要包含：
 
 ## 版本记录
 
+### v4 (2026-02-11)
+- 升级：Opus 4.5 → Opus 4.6 Thinking（Antigravity 已上线，需 pi-ai 补丁）
+- 更新：架构图反映最新模型分配（main/coder/MAS subagents 用 Opus 4.6，reviewer 用 Sonnet，研究/图片用 Gemini）
+- 记录：pi-ai 模型目录补丁方法（volume mount `models.generated.js`）
+- 环境版本更新至 OpenClaw 2026.2.9
+
 ### v3 (2026-02-10)
 - 新增：MAS 三种工作流模式文档（Mode A 线性 / Mode B 并行 / Mode C 辩论），含实测 prompt 和结果
 - 新增：MAS + 本地 Claude Code 集成方案（通过 openclaw-worker 桥接，session-id 多轮对话）
@@ -369,10 +376,12 @@ Bot 的 MEMORY.md 需要包含：
 
 ## 环境
 
-- OpenClaw: 2026.2.6
+- OpenClaw: 2026.2.9
 - Provider: Google Antigravity（OAuth）
 - Channel: Discord
 - Platform: Docker
+
+> **注意**：`claude-opus-4-6-thinking` 目前不在 pi-ai 内置模型目录中，需要通过补丁 `models.generated.js` 并用 Docker volume mount 挂载。详见 [openclaw-worker docker-compose.antigravity.yml](https://github.com/AliceLJY/openclaw-worker/blob/main/docker/docker-compose.antigravity.yml)。OpenClaw 上游更新 pi-ai 后可移除补丁。
 
 ## 参考
 

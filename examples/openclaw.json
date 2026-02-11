@@ -35,7 +35,7 @@
         "id": "coder",
         "name": "Code Agent",
         "model": {
-          "primary": "google-antigravity/claude-opus-4-5-thinking",
+          "primary": "google-antigravity/claude-opus-4-6-thinking",
           "fallbacks": ["google-antigravity/claude-sonnet-4-5", "google-antigravity/gemini-3-pro-high"]
         },
         "workspace": "/home/node/.openclaw/workspace-coder",
